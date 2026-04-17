@@ -1,10 +1,10 @@
 {-
  - Practica 7: Lógica de Predicados (Codificación)
  - Profesor: Manuel Soto Romero
- - Ayudante: DiesustituirEnFormula Mendez Medina
+ - Ayudante: Diego Mendez Medina
  - Lab: Erick Arroyo
- -
- -
+ - Ramirez Mendoza Joaquin Rodrigo
+ - Sanchez Loaeza Dana Ximena
 -}
 module LPred where
 
