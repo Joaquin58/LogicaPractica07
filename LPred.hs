@@ -3,8 +3,8 @@
  - Profesor: Manuel Soto Romero
  - Ayudante: DiesustituirEnFormula Mendez Medina
  - Lab: Erick Arroyo
- -
- -
+ - Ramirez Mendoza Joaquin Rodrigo
+ - Sanchez Loaeza Dana Ximena
 -}
 module LPred where
 
@@ -196,48 +196,96 @@ sustTerm x t (V v)
 sustTerm x t (Fun n ts) = Fun n (map (sustTerm x t) ts)
 
 -- ALPHA EQUIVALENCIA
---  Determina si dos expresiones son equivalentes alfa.
---   Esto implica comparar las expresiones considerando el renombrado de variables.
+-- ============================================================
+-- Determina si dos fórmulas de lógica de predicados son equivalentes alfa.
+-- Dos fórmulas son equivalentes alfa si tienen la misma estructura lógica
+-- y difieren únicamente en los nombres de las variables ligadas.
+-- Para determinar la equivalencia alfa, se siguen estos pasos:
+--   1. Convertir ambas fórmulas a una forma canónica (canon).
+--   2. En la forma canónica, todas las variables ligadas se renombran
+--      sistemáticamente como v1, v2, v3, ... según el orden en que aparecen.
+--   3. Comparar las dos formas canónicas con igualdad estructural (==).
 --
---   Ejemplo:
---   >>> alphaEq (ForAll "x" (Var "y")) (ForAll "z" (Var "y"))
+-- Ejemplo:
+--   >>> alphaEq (Forall "x" (Pred "P" [V "x"]))
+--               (Forall "z" (Pred "P" [V "z"]))
 --   True
-alphaEq :: Formula -> Formula -> Bool
-alphaEq = alphaEqF [] []
+--
+--   >>> alphaEq (Forall "x" (Pred "P" [V "y"]))
+--               (Forall "z" (Pred "P" [V "y"]))
+--   True
+--
+--   >>> alphaEq (Forall "x" (Pred "P" [V "x"]))
+--               (Forall "z" (Pred "P" [V "y"]))
+--   False
+-- ============================================================
 
--- Funcion que compara dos formulas considerando el renombrado de variables ligadas.
--- Utiliza dos listas de pares para llevar el seguimiento de las variables renombradas en ambos sentidos.
-alphaEqF :: [(Var, Var)] -> [(Var, Var)] -> Formula -> Formula -> Bool
-alphaEqF ent rent f g = case (f, g) of
-      (Top, Top) -> True
-      (Bot, Bot) -> True
-      (Pred p ts, Pred q us) ->
-        p == q && length ts == length us &&
-        all (uncurry (alphaEqT ent rent)) (zip ts us)
-      (Neg a, Neg b) -> alphaEqF ent rent a b
-      (Conj a b, Conj c d) -> alphaEqF ent rent a c && alphaEqF ent rent b d
-      (Disy a b, Disy c d) -> alphaEqF ent rent a c && alphaEqF ent rent b d
-      (Impl a b, Impl c d) -> alphaEqF ent rent a c && alphaEqF ent rent b d
-      (Forall varA cuerpoA, Forall varB cuerpoB) ->
-        alphaEqF ((varA, varB):ent) ((varB, varA):rent) cuerpoA cuerpoB
-      (Exists varA cuerpoA, Exists varB cuerpoB) ->
-        alphaEqF ((varA, varB):ent) ((varB, varA):rent) cuerpoA cuerpoB
-      _ -> False
--- funcion que compara dos terminos considerando el renombrado de variables ligadas.
--- Utiliza dos listas de pares para llevar el seguimiento de las variables renombradas en ambos sentidos.
-alphaEqT :: [(Var, Var)] -> [(Var, Var)] -> Term -> Term -> Bool
-alphaEqT ent rent t1 t2 = case (t1, t2) of
-  (V varA, V varB) ->
-    case lookup varA ent of
-      Just esperado -> varB == esperado
-      Nothing -> case lookup varB rent of
-        Just _ -> False
-        Nothing -> varA == varB
-  (Fun nombreFun ts, Fun nombreFun' us) ->
-    nombreFun == nombreFun'
-      && length ts == length us
-      && all (uncurry (alphaEqT ent rent)) (zip ts us)
-  _ -> False
+alphaEq :: Formula -> Formula -> Bool
+alphaEq f g = canon f == canon g
+
+-- Convierte una fórmula en su forma canónica.
+-- Devuelve la fórmula con todas las variables ligadas renombradas
+-- a nombres estándar (v1, v2, v3, ...).
+canon :: Formula -> Formula
+canon formula = fst (renombraVarsLigadas 1 [] formula)
+
+-- RENOMBRA VARIABLES LIGADAS
+-- Recorre la fórmula y renombra sistemáticamente las variables ligadas.
+-- Parámetros:
+--   counter : contador para generar nombres frescos (v1, v2, ...)
+--   env     : entorno de sustitución [(VarOriginal, VarCanonica)]
+--   formula : fórmula a renombrar
+--
+-- Devuelve:
+--   (fórmula renombrada, contador actualizado)
+-- ============================================================
+
+renombraVarsLigadas :: Int -> [(Var, Var)] -> Formula -> (Formula, Int)
+renombraVarsLigadas counter env formula = case formula of
+  Top -> (Top, counter)
+  Bot -> (Bot, counter)
+  Pred predName terms ->
+    (Pred predName [renombraTerms env t | t <- terms], counter)
+  Neg subformula ->
+    let (subRenom, nextCounter) = renombraVarsLigadas counter env subformula
+     in (Neg subRenom, nextCounter)
+  Conj left right ->
+    let (renamedLeft, counter1) = renombraVarsLigadas counter env left
+        (renamedRight, counter2) = renombraVarsLigadas counter1 env right
+     in (Conj renamedLeft renamedRight, counter2)
+  Disy left right ->
+    let (renamedLeft, counter1) = renombraVarsLigadas counter env left
+        (renamedRight, counter2) = renombraVarsLigadas counter1 env right
+     in (Disy renamedLeft renamedRight, counter2)
+  Impl left right ->
+    let (renamedLeft, counter1) = renombraVarsLigadas counter env left
+        (renamedRight, counter2) = renombraVarsLigadas counter1 env right
+     in (Impl renamedLeft renamedRight, counter2)
+  Forall var subformula ->
+    let vCanon = "v" ++ show counter
+        extEnv = (var, vCanon) : env
+        (subRenom, nextCounter) = renombraVarsLigadas (counter + 1) extEnv subformula
+     in (Forall vCanon subRenom, nextCounter)
+  Exists var subformula ->
+    let vCanon = "v" ++ show counter
+        extEnv = (var, vCanon) : env
+        (subRenom, nextCounter) = renombraVarsLigadas (counter + 1) extEnv subformula
+     in (Exists vCanon subRenom, nextCounter)
+
+-- RENOMBRA TERMS
+-- Aplica el entorno de sustitución a los términos.
+-- Si la variable aparece en el entorno, se sustituye por su nombre canónico.
+-- Si no aparece, se deja igual (es libre).
+-- ============================================================
+
+renombraTerms :: [(Var, Var)] -> Term -> Term
+renombraTerms env term = case term of
+  V varName ->
+    case lookup varName env of
+      Just vCanon -> V vCanon
+      Nothing -> V varName
+  Fun funName args ->
+    Fun funName [renombraTerms env arg | arg <- args]
 
 -- Número de pruebas
 
