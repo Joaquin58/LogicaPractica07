@@ -120,15 +120,16 @@ sustituye x t = go
     go (Disy a b)    = Disy (go a) (go b)
     go (Impl a b)    = Impl (go a) (go b)
     go (Forall v f)
-      | v == x       = Forall v f
-      | v `elem` varsTerm t =
-          let v'  = freshVar (varsFormula f ++ varsTerm t ++ [x, v])
-              f'  = renombra v v' f
-          in Forall v' (go f')
-      | otherwise    = Forall v (go f)
+        | v == x       = Forall v f
+        | v `elem` varsTerm t && x `elem` varsLibres f =
+            let v'  = freshVar (varsFormula f ++ varsTerm t ++ [x, v])
+                f'  = renombra v v' f
+            in Forall v' (go f')
+        | otherwise    = Forall v (go f)
+
     go (Exists v f)
       | v == x       = Exists v f
-      | v `elem` varsTerm t =
+      | v `elem` varsTerm t && x `elem` varsLibres f =
           let v'  = freshVar (varsFormula f ++ varsTerm t ++ [x, v])
               f'  = renombra v v' f
           in Exists v' (go f')
